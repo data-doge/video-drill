@@ -1,61 +1,56 @@
+const fs = require('fs')
 const path = require('path')
 const ffmpeg = require('fluent-ffmpeg')
 const rimraf = require('rimraf')
 const Jimp = require('jimp')
 const range = require('lodash.range')
 const async = require('async')
+const exec = require('child_process').exec
 
-const cmd = ffmpeg('./fingerbib.mp4')
+const inputPath = './input.mp4'
 
-const r = 50
-const xc = 300
-const yc = 300
+const r = 100
+const xc = 640
+const yc = 360
 const circSampleCount = 420
   
 const frameDir = './frames'
 let framePaths = null
+
+exec(`ffmpeg -i ${inputPath} -vf fps=1 ${frameDir}/out%d.png`, err => {
+  if (err) throw err
+  fs.readdir(frameDir, (err, frameFiles) => {
+    if (err) throw err
+    assembleImageFrom(frameFiles)
+  })
+})
   
 rimraf(path.join(frameDir, '*'), () => {
   console.log('removing old frames')
 })
-  
-cmd.ffprobe((err, data) => {
-  const seconds = parseInt(data.format.duration)
-  cmd.on('filenames', filenames => {
-    framePaths = filenames.map(fn => path.join(frameDir, fn))
-    console.log(`generating ${framePaths.length} files. could take some time.`)
+
+function frameToPixelRow (frameFile, cb) {
+  const framePath = path.join(frameDir, frameFile)
+  Jimp.read(framePath, (err, image) => {
+    if (err) cb(err)
+    const coords = range(0, 2 * Math.PI, 2 * Math.PI / circSampleCount).map(theta => ({
+      x: parseInt(xc + r * Math.cos(theta)),
+      y: parseInt(yc + r * Math.sin(theta))
+    }))
+    const pixelRow = coords.map(({ x, y }) => image.getPixelColor(x, y))
+    cb(null, pixelRow)
   })
-  cmd.on('end', () => {
-    console.log('screenshots taken')
-    async.map(framePaths, (framePath, cb) => {
-      Jimp.read(framePath, (err, image) => {
-        if (err) cb(err)
-        
-        const coords = range(0, 2 * Math.PI, 2 * Math.PI / circSampleCount).map(theta => {
-          const y = parseInt(yc + r * Math.sin(theta))
-          const x = parseInt(xc + r * Math.cos(theta))
-          return { x, y }
-        })
-        
-        const pixelRow = coords.map(({ x, y }) => {
-          return image.getPixelColor(x, y)
-        })
-        
-        cb(null, pixelRow)
+}
+
+function assembleImageFrom (frameFiles) {
+  async.map(frameFiles, frameToPixelRow, (err, pixelMatrix) => {
+    if (err) throw err
+    const image = new Jimp(circSampleCount, pixelMatrix.length)
+    pixelMatrix.forEach((pixelRow, y) => {
+      pixelRow.forEach((pixel, x) => {
+        image.setPixelColor(pixel, x, y)
       })
-    }, (err, pixelMatrix) => {
-      if (err) throw err
-      const image = new Jimp(circSampleCount, pixelMatrix.length)
-      pixelMatrix.forEach((pixelRow, y) => {
-        pixelRow.forEach((pixel, x) => {
-          image.setPixelColor(pixel, x, y)
-        })
-      })
-      image.write(`./done.jpg`)
     })
+    image.write(`./done.jpg`)
   })
-  cmd.screenshots({
-    count: seconds,
-    folder: './frames'
-  })
-})
+}
