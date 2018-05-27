@@ -1,0 +1,20 @@
+{
+  "name": "video-drill",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "data-doge <eugene@enspiral.com> (http://fuckafucka.com)",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.6.1",
+    "file-type": "^8.0.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "jimp": "^0.2.28",
+    "lodash.range": "^3.2.0",
+    "node-demux": "^1.1.0",
+    "rimraf": "^2.6.2"
+  }
+}
